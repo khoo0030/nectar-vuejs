@@ -1,0 +1,55 @@
+#############
+### Nginx ###
+#############
+
+FROM nginx:1.15.5
+
+# install OS dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg2 \
+    vim
+
+## support running as arbitrary user which belogs to the root group, for nginx stuff
+RUN chmod 777 /var/cache/nginx && \
+    chmod 777 /var/run && \
+    chmod 777 /var/log/nginx
+
+# added this
+RUN mkdir /var/log/nginx/js && \
+    touch /var/log/nginx/js/access.log && \
+    touch /var/log/nginx/js/error.log
+
+RUN chmod 777 /var/log/nginx/js && \
+    chmod 777 /var/log/nginx/js/access.log && \
+    chmod 777 /var/log/nginx/js/error.log
+
+# users are not allowed to listen on privileged ports i.e.
+# ports lower than 1024, so we make nginx listen to 8080 instead
+RUN sed -i.bak 's/listen\(.*\)80;/listen 8080;/' /etc/nginx/conf.d/default.conf
+
+# doing this sed lets you avoid an ugly warning when you start up the nginx container
+# though the warning is harmless - it'll let you deploy and works as usual anyway #perfectionism
+RUN sed -i.bak 's/^user/#user/' /etc/nginx/nginx.conf
+
+# nginx setup
+COPY nginxconf/staging.conf /etc/nginx/conf.d/staging.conf
+
+# expose container port
+EXPOSE 8080
+
+############
+### Node ###
+############
+
+# install nodejs
+RUN curl -sL https://deb.nodesource.com/setup_8.x | bash - && apt-get install -y nodejs
+
+# copy over the JS app
+COPY . /var/www/html/js
+
+# set work directory
+WORKDIR /var/www/html/js
+
+# run npm install and build JS files
+RUN npm install && npm run build-staging
